@@ -32,7 +32,7 @@ class TranslationServiceProvider extends ServiceProvider
 
         // Publishes views/config/language
         $this->publishes([$appRootDir.'/resources/views' => base_path('resources/views')], 'views');
-        $this->publishes([$appRootDir.'/config/translation-manager.php' => config_path('translation-manager.php')]);
+        $this->publishes([$appRootDir.'/config/translation-manager.php' => config_path('translation-manager.php')], 'config');
         $this->publishes([$appRootDir.'/resources/lang' => resource_path('lang/vendor/novius')], 'lang');
 
         // Loads the views
