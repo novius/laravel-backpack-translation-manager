@@ -28,7 +28,7 @@ class TranslationServiceProvider extends ServiceProvider
      */
     public function boot(\Illuminate\Routing\Router $router)
     {
-        $appRootDir = realpath(__DIR__.'/../../');
+        $appRootDir = dirname(__DIR__, 2);
 
         // Publishes views/config/language
         $this->publishes([$appRootDir.'/resources/views' => base_path('resources/views')], 'views');
@@ -57,7 +57,7 @@ class TranslationServiceProvider extends ServiceProvider
      */
     public function setupRoutes(Router $router)
     {
-        $appRootDir = realpath(__DIR__.'/../../');
+        $appRootDir = dirname(__DIR__, 2);
 
         // by default, use the routes file provided in vendor
         $routeFilePathInUse = $appRootDir.'/'.$this->routeFilePath;
