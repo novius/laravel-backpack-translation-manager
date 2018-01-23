@@ -67,6 +67,9 @@ class TranslationController extends Controller
         // Converts sub arrays to dot notation (see https://laravel.com/docs/4.2/validation#localization)
         $diskTranslations = array_dot($diskTranslations);
 
+        // Removes non-string values
+        $diskTranslations = array_filter($diskTranslations, 'is_string');
+
         // Merges disk translations with DB translations
         $translations = array_map(function($value, $key) use ($dictionary, $language, $dbTranslations) {
 
