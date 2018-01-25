@@ -26,7 +26,7 @@ In order for the translation manager to be accessible trought the sidebar in the
 
 ```html
 <li>
-    <a href="{{ url(config('backpack.base.route_prefix', 'admin').'/'.config('translation-manager.route_prefix')) }}"><i class="fa fa-cog"></i> <span>{{ trans('translation-manager::app.translation') }}</span></a>
+    <a href="{{ url(config('backpack.base.route_prefix', 'admin').'/'.config('translation-manager.route_prefix')) }}"><i class="fa fa-cog"></i> <span>{{ trans('translation-manager::crud.sidebar_title') }}</span></a>
 </li>
 ```
 
