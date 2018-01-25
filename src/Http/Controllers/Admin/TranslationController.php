@@ -71,7 +71,7 @@ class TranslationController extends Controller
         $diskTranslations = array_filter($diskTranslations, 'is_string');
 
         // Merges disk translations with DB translations
-        $translations = array_map(function ($value, $key) use ($dictionary, $language, $dbTranslations) {
+        $translations = array_map(function($value, $key) use ($dictionary, $language, $dbTranslations) {
 
             // Returns database translation prior to disk translation if exists
             foreach ($dbTranslations as $dbTranslation) {
@@ -89,7 +89,7 @@ class TranslationController extends Controller
         }, $diskTranslations, array_keys($diskTranslations));
 
         // Sorts by key to keep symmetry across languages
-        $translations = array_sort($translations, function ($translation) {
+        $translations = array_sort($translations, function($translation) {
             return $translation->key;
         });
 
@@ -149,7 +149,7 @@ class TranslationController extends Controller
         }
 
         // Converts to key/value with locale as key and display name as value
-        $locales = array_map(function ($locale) {
+        $locales = array_map(function($locale) {
             $name = \Locale::getDisplayName($locale);
             $name = mb_strtoupper(mb_substr($name, 0, 1)).mb_substr($name, 1);
 
@@ -211,9 +211,10 @@ class TranslationController extends Controller
             $namespaces = Lang::getLoader()->namespaces();
 
             // Searches for lang files in lang directories
-            $directories = array_merge([$app['path.lang']], array_values($namespaces));
+            $directories = array_merge(array($app['path.lang']), array_values($namespaces));
             foreach ($directories as $directory) {
                 foreach ($files->directories($directory) as $langPath) {
+
                     foreach ($files->allfiles($langPath) as $file) {
                         $info = pathinfo($file);
 
