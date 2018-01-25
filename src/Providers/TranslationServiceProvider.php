@@ -1,6 +1,6 @@
 <?php
 
-namespace Novius\Backpack\Translation\Manager;
+namespace Novius\Backpack\Translation\Manager\Providers;
 
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;

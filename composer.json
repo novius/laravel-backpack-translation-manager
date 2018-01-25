@@ -1,6 +1,14 @@
 {
     "name": "novius/laravel-backpack-translation-manager",
     "description": "This packages provides an interface to manage translations via the Backpack admin panel",
+    "keywords": [
+        "Novius",
+        "Laravel",
+        "Backpack",
+        "Translation",
+        "Manager",
+        "I18N"
+    ],
     "type": "library",
     "license": "AGPL-3.0-or-later",
     "authors": [
@@ -14,9 +22,30 @@
         "backpack/base": "^0.7.19",
         "spatie/laravel-translation-loader": "^1.2.1"
     },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "~2.10.0"
+    },
     "autoload": {
         "psr-4": {
             "Novius\\Backpack\\Translation\\Manager\\": "src"
         }
+    },
+    "scripts": {
+        "lint" : [
+            "php-cs-fixer fix --dry-run --config .php_cs -vv --diff --allow-risky=yes"
+        ],
+        "test" : [
+            "phpunit"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Novius\\Backpack\\Translation\\Providers\\TranslationServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
     }
 }

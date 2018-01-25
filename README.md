@@ -16,7 +16,7 @@ Please follow these instructions: https://github.com/spatie/laravel-translation-
 ```php?start_inline=1
 'providers' => [
     // ...
-    Novius\Backpack\Translation\Manager\TranslationServiceProvider::class,
+    Novius\Backpack\Translation\Manager\Providers\TranslationServiceProvider::class,
 ]
 ```
 
