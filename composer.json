@@ -2,7 +2,7 @@
     "name": "novius/laravel-backpack-translation-manager",
     "description": "This packages provides an interface to manage translations via the Backpack admin panel",
     "type": "library",
-    "license": "AGPL v3",
+    "license": "AGPL-3.0-or-later",
     "authors": [
         {
             "name": "Pascal VINEY",
