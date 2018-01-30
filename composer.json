@@ -38,7 +38,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Novius\\Backpack\\Translation\\Providers\\TranslationServiceProvider"
+                "Novius\\Backpack\\Translation\\Manager\\Providers\\TranslationServiceProvider"
             ]
         }
     },
