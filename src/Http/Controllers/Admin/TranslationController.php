@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Translation\FileLoader;
-use Novius\Backpack\Translation\Manager\Http\Requests\TranslationRequest;
 use Spatie\TranslationLoader\LanguageLine;
 
 class TranslationController extends Controller
@@ -34,12 +33,11 @@ class TranslationController extends Controller
      */
     public function getIndex(Request $request)
     {
-
-        $dictionary = $request->dictionary;
-        $language = $request->language;
+        $dictionary = (string) $request->dictionary;
+        $language = (string) $request->language;
 
         // Gets translations by dictionary and language
-        if ($dictionary && $language) {
+        if (!empty($dictionary) && !empty($language)) {
             $this->data['translations'] = $this->getTranslationsItems($dictionary, $language);
         }
 
@@ -52,26 +50,28 @@ class TranslationController extends Controller
     }
 
     /**
-     * @param $dictionary
-     * @param $language
+     * Gets the translation items (instances of LanguageLine)
+     *
+     * @param string $dictionary
+     * @param string $language
      * @return array
      */
     protected function getTranslationsItems($dictionary, $language)
     {
         // Loads translations from database
-        $dbTranslations = $this->getTranslationItemsFromDB($dictionary, $language);
+        $dbTranslations = $this->getTranslationItemsFromDB($dictionary);
 
         // Loads translations from files
         $diskTranslations = $this->getTranslationsFromFiles($dictionary, $language);
 
-        // Converts sub arrays to dot notation (see https://laravel.com/docs/4.2/validation#localization)
+        // Converts sub arrays to dot notation (see https://laravel.com/docs/5.4/validation#localization)
         $diskTranslations = array_dot($diskTranslations);
 
         // Removes non-string values
         $diskTranslations = array_filter($diskTranslations, 'is_string');
 
         // Merges disk translations with DB translations
-        $translations = array_map(function($value, $key) use ($dictionary, $language, $dbTranslations) {
+        $translations = array_map(function ($value, $key) use ($dictionary, $language, $dbTranslations) {
 
             // Returns database translation prior to disk translation if exists
             foreach ($dbTranslations as $dbTranslation) {
@@ -85,11 +85,10 @@ class TranslationController extends Controller
             $translation = (new LanguageLine(['group' => $dictionary, 'key' => $key]))->setTranslation($language, $value);
 
             return $translation;
-
         }, $diskTranslations, array_keys($diskTranslations));
 
         // Sorts by key to keep symmetry across languages
-        $translations = array_sort($translations, function($translation) {
+        $translations = array_sort($translations, function ($translation) {
             return $translation->key;
         });
 
@@ -100,15 +99,16 @@ class TranslationController extends Controller
      * Saves translations
      *
      * @param Request $request
-     * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
+     * @return \Illuminate\Http\RedirectResponse
+     * @throws \Exception
      */
     public function postIndex(Request $request)
     {
-        $translations = $request->translations;
-        $dictionary = $request->dictionary;
-        $language = $request->language;
+        $translations = (array) $request->translations;
+        $dictionary = (string) $request->dictionary;
+        $language = (string) $request->language;
 
-        // @todo faire les validations proprement (cf. rules())
+        // @todo validation with rules()
         if (empty($dictionary)) {
             throw new \Exception('Dictionary missing');
         }
@@ -117,21 +117,10 @@ class TranslationController extends Controller
         }
 
         if (!empty($translations)) {
-
-//            // Converts dot notation to sub arrays (see https://laravel.com/docs/4.2/validation#localization)
-//            $translations = array_reduce(array_keys($translations), function($result, $key) use ($translations) {
-//                array_set($result, $key, $translations[$key]);
-//                return $result;
-//            }, []);
-
             foreach ($translations as $key => $value) {
-                if (is_null($value)) {
-                    continue;
-                }
-
                 // Finds/creates the item in DB
                 $translation = LanguageLine::firstOrNew(['key' => $key, 'group' => $dictionary]);
-                $translation->setTranslation($language, $value);
+                $translation->setTranslation($language, (string) $value);
                 $translation->save();
             }
         }
@@ -142,15 +131,24 @@ class TranslationController extends Controller
         ]);
     }
 
+    /**
+     * Gets the available locales for translations
+     *
+     * @return array
+     */
     protected function getTranslationLocales()
     {
-        $dictionaries = $this->getTranslationDictionariesWithLocales();
-
-        $locales = array_flatten($dictionaries);
-        $locales = array_unique($locales);
+        // Gets the locales defined in the config file
+        $locales = config('translation-manager.locales');
+        if (is_null($locales)) {
+            // Otherwise gets the locales from the dictionaries
+            $dictionaries = $this->getTranslationDictionariesWithLocales();
+            $locales = array_flatten($dictionaries);
+            $locales = array_unique($locales);
+        }
 
         // Converts to key/value with locale as key and display name as value
-        $locales = array_map(function($locale) {
+        $locales = array_map(function ($locale) {
             $name = \Locale::getDisplayName($locale);
             $name = mb_strtoupper(mb_substr($name, 0, 1)).mb_substr($name, 1);
 
@@ -208,20 +206,13 @@ class TranslationController extends Controller
             $app = resolve('app');
             $files = resolve('files');
 
+            // Gets the lang namespaces
             $namespaces = Lang::getLoader()->namespaces();
 
-            // resources/lang/                                                      fr/file.php
-            // resources/lang/                                                      fr/dir/file.php
-            // resources/lang/                                                      vendor/owner/package/fr/file.php
-            // resources/lang/                                                      vendor/owner/package/fr/dir/file.php
-            // vendor/novius/laravel-backpack-translation-manager/resources/lang/   fr/file.php
-            // vendor/novius/laravel-backpack-translation-manager/resources/lang/   fr/dir/file.php
-
             // Searches for lang files in lang directories
-            $directories = array_merge(array($app['path.lang']), array_values($namespaces));
+            $directories = array_merge([$app['path.lang']], array_values($namespaces));
             foreach ($directories as $directory) {
                 foreach ($files->directories($directory) as $langPath) {
-
                     foreach ($files->allfiles($langPath) as $file) {
                         $info = pathinfo($file);
 
@@ -256,7 +247,7 @@ class TranslationController extends Controller
             // De-duplicates dictionaries locales
             $this->dictionaries = array_map('array_unique', $this->dictionaries);
 
-            uksort($this->dictionaries, "strnatcmp");
+            uksort($this->dictionaries, 'strnatcmp');
         }
 
         return $this->dictionaries;
@@ -265,7 +256,7 @@ class TranslationController extends Controller
     /**
      * Gets the translation items from DB
      *
-     * @param $dictionary
+     * @param string $dictionary
      * @return \Illuminate\Support\Collection
      */
     protected function getTranslationItemsFromDB($dictionary)
