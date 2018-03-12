@@ -23,6 +23,23 @@
 @endsection
 
 @section('content')
+
+    @if (session('success'))
+        <div class="alert alert-success">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if ($errors->count())
+        <div class="alert alert-danger">
+            <ul>
+                @foreach ($errors->all() as $e)
+                    <li>{{ $e }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <div class="row">
         <div class="col-md-12">
             <div class="box box-default">
@@ -64,9 +81,6 @@
                                     {{ trans('translation-manager::crud.select_language_label') }}
                                 </label>
                                 <select class="form-control" id="select_language" name="language" label="Language" type="select" value="">
-                                    <option value="">
-                                        {{ trans('translation-manager::crud.select_language_default_option') }}
-                                    </option>
                                     @foreach ($locales as $locale => $name)
                                         <option value="{{ $locale }}" {!! $locale === $selectedLanguage? 'selected="selected"' : '' !!}>
                                             {{ $name }}
@@ -74,6 +88,16 @@
                                     @endforeach
                                 </select>
                             </div>
+                        </div>
+                        <div class="row">
+                            <div class="form-group col-md-12">
+                                <label for="">
+                                    {{ trans('translation-manager::crud.search_label') }}
+                                </label>
+                                <input type="text" name="search" class="form-control" value="{{ $search }}" />
+                            </div>
+                        </div>
+                        <div class="row">
                             <div class="form-group col-md-12">
                                 <button type="submit" class="btn btn-primary">
                                     {{ trans('translation-manager::crud.button_search') }}
@@ -85,33 +109,51 @@
                 {{ Form::open() }}
                     <input type="hidden" name="dictionary" value="{{ $selectedDictionary }}"/>
                     <input type="hidden" name="language" value="{{ $selectedLanguage }}"/>
+                    <input type="hidden" name="search" value="{{ $search }}"/>
                     <div class="box-body">
-                        <table id="crudTable" class="table table-bordered table-striped display dataTable" role="grid" aria-describedby="crudTable_info">
-                            <thead>
-                                <tr role="row">
-                                    <th>
-                                        {{ trans('translation-manager::crud.column_key') }}
-                                    </th>
-                                    <th>
-                                        {{ trans('translation-manager::crud.column_translation') }}
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            @if (isset($translations))
-                                @if (!empty($translations))
-                                    @foreach ($translations as $translation)
-                                    <tr class="odd">
-                                        <td valign="top" class="">
-                                            {{ $translation->key }}
-                                        </td>
-                                        <td valign="top" class="">
-                                            <input type="text"
-                                                   name="translations[{{ $translation->key }}]"
-                                                   value="{{ $translation->getTranslation($selectedLanguage) }}"
-                                                   class="form-control" />
-                                        </td>
-                                    </tr>
+                            @if (isset($translationsByDictionary))
+                                @if (!empty($translationsByDictionary))
+                                    @foreach ($translationsByDictionary as $dictionary => $translations)
+                                        <h3>
+                                            {{ title_case($dictionary) }}
+                                        </h3>
+                                        <table class="table table-bordered table-striped display dataTable" role="grid" aria-describedby="crudTable_info">
+                                            <thead>
+                                                <tr role="row">
+                                                    <th width="30%">
+                                                        {{ trans('translation-manager::crud.column_key') }}
+                                                    </th>
+                                                    <th>
+                                                        {{ trans('translation-manager::crud.column_translation') }}
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach ($translations as $translation)
+                                                    <tr class="odd">
+                                                        <td valign="top" class="">
+                                                            {{ $translation->key }}
+                                                        </td>
+                                                        <td valign="top" class="">
+                                                            <input type="text"
+                                                                   name="translations[{{ $dictionary }}][{{ $translation->key }}]"
+                                                                   value="{{ $translation->getTranslation($selectedLanguage) }}"
+                                                                   class="form-control" />
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <th>
+                                                        {{ trans('translation-manager::crud.column_key') }}
+                                                    </th>
+                                                    <th>
+                                                        {{ trans('translation-manager::crud.column_translation') }}
+                                                    </th>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
                                     @endforeach
                                 @else
                                     <tr class="odd">
@@ -127,20 +169,8 @@
                                     </td>
                                 </tr>
                             @endif
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <th>
-                                        {{ trans('translation-manager::crud.column_key') }}
-                                    </th>
-                                    <th>
-                                        {{ trans('translation-manager::crud.column_translation') }}
-                                    </th>
-                                </tr>
-                            </tfoot>
-                        </table>
                     </div>
-                    @if (isset($translations))
+                    @if (isset($translationsByDictionary))
                         <div class="box-footer">
                             <button type="submit" class="btn btn-success">
                                 <span class="fa fa-save" role="presentation" aria-hidden="true"></span> &nbsp;
