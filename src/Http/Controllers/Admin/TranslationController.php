@@ -4,18 +4,14 @@ namespace Novius\Backpack\Translation\Manager\Http\Controllers\Admin;
 
 use Backpack\Base\app\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Redirect;
-use Illuminate\Translation\FileLoader;
+use Novius\Backpack\Translation\Manager\Http\Requests\Admin\TranslationSaveRequest;
+use Novius\Backpack\Translation\Manager\Manager\UnifiedTranslationManager;
 use Spatie\TranslationLoader\LanguageLine;
 
 class TranslationController extends Controller
 {
     protected $data = []; // the information we send to the view
-
-    protected $dictionaries;
-
-    protected $nativeFileLoader;
 
     /**
      * Create a new controller instance.
@@ -29,297 +25,75 @@ class TranslationController extends Controller
      * Displays the interface to manage translations
      *
      * @param Request $request
+     * @param \Novius\Backpack\Translation\Manager\Manager\UnifiedTranslationManager $translationManager
      * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
      */
-    public function getIndex(Request $request)
+    public function getIndex(Request $request, UnifiedTranslationManager $translationManager)
     {
-        $dictionary = (string) $request->dictionary;
-        $language = (string) $request->language;
+        $selectedDictionary = (string) $request->dictionary;
+        $selectedLanguage = (string) $request->language;
+        $search = (string) $request->search;
 
-        // Gets translations by dictionary and language
-        if (!empty($dictionary) && !empty($language)) {
-            $this->data['translations'] = $this->getTranslationsItems($dictionary, $language);
+        $locales = $translationManager->getAvailableLocales();
+        $dictionariesByNamespace = $translationManager->getDictionariesByNamespace();
+
+        // Uses the application's default locale if none selected or not valid
+        if (empty($selectedLanguage) || !isset($locales[$selectedLanguage])) {
+            $selectedLanguage = config('app.locale');
         }
 
-        $this->data['selectedDictionary'] = $dictionary;
-        $this->data['selectedLanguage'] = $language;
-        $this->data['dictionariesByNamespace'] = $this->getTranslationDictionariesByNamespace();
-        $this->data['locales'] = $this->getTranslationLocales();
+        // Gets the dictionaries where to search
+        $dictionaries = !empty($selectedDictionary) ? [$selectedDictionary] : array_keys($translationManager->getDictionariesWithLocales());
+
+        // Gets the translations by dictionary
+        foreach ($dictionaries as $dictionary) {
+            $translationsByDictionary[$dictionary] = $translationManager->getItems($dictionary, $selectedLanguage);
+        }
+
+        // Filters the translations by search string
+        if (!empty($search)) {
+            $translationsByDictionary = $translationManager->searchInTranslationsByDictionary($translationsByDictionary, $search);
+        }
+
+        $this->data['translationsByDictionary'] = $translationsByDictionary;
+        $this->data['selectedDictionary'] = $selectedDictionary;
+        $this->data['selectedLanguage'] = $selectedLanguage;
+        $this->data['search'] = $search;
+        $this->data['dictionariesByNamespace'] = $dictionariesByNamespace;
+        $this->data['locales'] = $locales;
 
         return view('translation-manager::index', $this->data);
     }
 
     /**
-     * Gets the translation items (instances of LanguageLine)
-     *
-     * @param string $dictionary
-     * @param string $language
-     * @return array
-     */
-    protected function getTranslationsItems($dictionary, $language)
-    {
-        // Loads translations from database
-        $dbTranslations = $this->getTranslationItemsFromDB($dictionary);
-
-        // Loads translations from files
-        $diskTranslations = $this->getTranslationsFromFiles($dictionary, $language);
-
-        // Converts sub arrays to dot notation (see https://laravel.com/docs/5.4/validation#localization)
-        $diskTranslations = array_dot($diskTranslations);
-
-        // Removes non-string values
-        $diskTranslations = array_filter($diskTranslations, 'is_string');
-
-        // Merges disk translations with DB translations
-        $translations = array_map(function ($value, $key) use ($dictionary, $language, $dbTranslations) {
-
-            // Returns database translation prior to disk translation if exists
-            foreach ($dbTranslations as $dbTranslation) {
-                // Key and dictionary must match and a translation must exist for current language
-                if ($dbTranslation->key === $key && $dbTranslation->group === $dictionary && isset($dbTranslation->text[$language])) {
-                    return $dbTranslation;
-                }
-            }
-
-            // Creates a new item
-            $translation = (new LanguageLine(['group' => $dictionary, 'key' => $key]))->setTranslation($language, $value);
-
-            return $translation;
-        }, $diskTranslations, array_keys($diskTranslations));
-
-        // Sorts by key to keep symmetry across languages
-        $translations = array_sort($translations, function ($translation) {
-            return $translation->key;
-        });
-
-        return $translations;
-    }
-
-    /**
      * Saves translations
      *
-     * @param Request $request
+     * @param \Novius\Backpack\Translation\Manager\Http\Requests\Admin\TranslationSaveRequest $request
      * @return \Illuminate\Http\RedirectResponse
      * @throws \Exception
      */
-    public function postIndex(Request $request)
+    public function postIndex(TranslationSaveRequest $request)
     {
-        $translations = (array) $request->translations;
-        $dictionary = (string) $request->dictionary;
-        $language = (string) $request->language;
+        $selectedDictionary = (string) $request->dictionary;
+        $selectedLanguage = (string) $request->language;
+        $search = (string) $request->search;
+        $translationsByDictionary = (array) $request->translations;
 
-        // @todo validation with rules()
-        if (empty($dictionary)) {
-            throw new \Exception('Dictionary missing');
-        }
-        if (empty($language)) {
-            throw new \Exception('Language missing');
-        }
-
-        if (!empty($translations)) {
-            foreach ($translations as $key => $value) {
-                // Finds/creates the item in DB
-                $translation = LanguageLine::firstOrNew(['key' => $key, 'group' => $dictionary]);
-                $translation->setTranslation($language, (string) $value);
-                $translation->save();
+        if (!empty($translationsByDictionary)) {
+            foreach ($translationsByDictionary as $dictionary => $translations) {
+                foreach ($translations as $key => $value) {
+                    // Finds/creates the item in DB
+                    $translation = LanguageLine::firstOrNew(['key' => $key, 'group' => $dictionary]);
+                    $translation->setTranslation($selectedLanguage, (string) $value);
+                    $translation->save();
+                }
             }
         }
 
         return Redirect::back()->withInput([
-            'dictionary' => $dictionary,
-            'language' => $language,
+            'language' => $selectedLanguage,
+            'dictionary' => $selectedDictionary,
+            'search' => $search,
         ]);
-    }
-
-    /**
-     * Gets the available locales for translations
-     *
-     * @return array
-     */
-    protected function getTranslationLocales()
-    {
-        // Gets the locales defined in the config file
-        $locales = config('translation-manager.locales');
-        if (is_null($locales)) {
-            // Otherwise gets the locales from the dictionaries
-            $dictionaries = $this->getTranslationDictionariesWithLocales();
-            $locales = array_flatten($dictionaries);
-            $locales = array_unique($locales);
-        }
-
-        // Converts to key/value with locale as key and display name as value
-        $locales = array_map(function ($locale) {
-            $name = \Locale::getDisplayName($locale);
-            $name = mb_strtoupper(mb_substr($name, 0, 1)).mb_substr($name, 1);
-
-            return $name;
-        }, array_combine($locales, $locales));
-
-        asort($locales);
-
-        return $locales;
-    }
-
-    /**
-     * Gets the available translation dictionaries
-     *
-     * @return array
-     */
-    protected function getTranslationDictionaries()
-    {
-        $dictionariesLocales = $this->getTranslationDictionariesWithLocales();
-
-        $dictionaries = array_keys($dictionariesLocales);
-        $dictionaries = array_unique($dictionaries);
-        sort($dictionaries);
-
-        return $dictionaries;
-    }
-
-    /**
-     * Gets the available translation dictionaries
-     *
-     * @return array
-     */
-    protected function getTranslationDictionariesByNamespace()
-    {
-        $dictionariesLocales = $this->getTranslationDictionariesWithLocales();
-
-        // Dictionaries by namespace
-        $dictionaries = [];
-        foreach ($dictionariesLocales as $dictionary => $locales) {
-            list($namespace, $group) = Lang::parseKey($dictionary);
-            $dictionaries[$namespace][$dictionary] = $group;
-        }
-
-        return $dictionaries;
-    }
-
-    /**
-     * Gets the available translation dictionaries with their available locales
-     *
-     * @return array
-     */
-    protected function getTranslationDictionariesWithLocales()
-    {
-        if (is_null($this->dictionaries)) {
-            $app = resolve('app');
-            $files = resolve('files');
-
-            // Gets the lang namespaces
-            $namespaces = Lang::getLoader()->namespaces();
-
-            // Searches for lang files in lang directories
-            $directories = array_merge([$app['path.lang']], array_values($namespaces));
-            foreach ($directories as $directory) {
-                foreach ($files->directories($directory) as $langPath) {
-                    foreach ($files->allfiles($langPath) as $file) {
-                        $info = pathinfo($file);
-
-                        // Extracts the sub path
-                        $subLangPath = trim(str_replace($langPath, '', $info['dirname']), DIRECTORY_SEPARATOR);
-
-                        // Extracts the namespace and locale from path
-                        $namespace = array_search($directory, $namespaces);
-                        if (!empty($subLangPath) && $namespace === false) {
-                            list($namespace, $locale, $subLangPath) = array_pad(explode(DIRECTORY_SEPARATOR, $subLangPath, 3), 3, '');
-                        } else {
-                            $locale = basename($langPath);
-                        }
-
-                        // Builds the dictionary path including namespace and group
-                        $dictionary = $info['filename'];
-                        if (!empty($subLangPath)) {
-                            $dictionary = $subLangPath.DIRECTORY_SEPARATOR.$dictionary;
-                        }
-                        if (!empty($namespace)) {
-                            $dictionary = $namespace.'::'.$dictionary;
-                        }
-
-                        // Normalizes (eg. fr-FR => fr_FR)
-                        $locale = \Locale::canonicalize($locale);
-
-                        $this->dictionaries[$dictionary][] = $locale;
-                    }
-                }
-            }
-
-            // De-duplicates dictionaries locales
-            $this->dictionaries = array_map('array_unique', $this->dictionaries);
-
-            uksort($this->dictionaries, 'strnatcmp');
-        }
-
-        return $this->dictionaries;
-    }
-
-    /**
-     * Gets the translation items from DB
-     *
-     * @param string $dictionary
-     * @return \Illuminate\Support\Collection
-     */
-    protected function getTranslationItemsFromDB($dictionary)
-    {
-        $items = LanguageLine::where('group', $dictionary)->orderBy('key')->get();
-
-        return $items;
-    }
-
-    /**
-     * Gets the translations from files
-     *
-     * @param $dictionary
-     * @param $language
-     * @return array
-     */
-    protected function getTranslationsFromFiles($dictionary, $language)
-    {
-        // Gets the native loader to prevent loading from DB (see spatie/laravel-translation-loader)
-        $fileLoader = $this->getTranslationLoader();
-
-        list($namespace, $group) = Lang::parseKey($dictionary);
-
-        $translations = $fileLoader->load($language, $group, $namespace);
-
-        // Gets available keys in other languages, so we will have a symmetric list of translations in all languages
-        $availableLocales = array_get($this->getTranslationDictionariesWithLocales(), $dictionary);
-        foreach ($availableLocales as $locale) {
-            $localeTranslations = $fileLoader->load($locale, $group, $namespace);
-            foreach ($localeTranslations as $key => $value) {
-                if (!isset($translations[$key])) {
-                    $translations[$key] = '';
-                }
-            }
-        }
-
-        asort($translations);
-
-        return $translations;
-    }
-
-    /**
-     * Gets the native translation loader (used to get translations from files without those from DB)
-     *
-     * @return FileLoader
-     */
-    protected function getTranslationLoader()
-    {
-        if (is_null($this->nativeFileLoader)) {
-            $app = resolve('app');
-
-            // Gets the current loader
-            $fileLoader = Lang::getLoader();
-
-            // Instantiate the native loader
-            $this->nativeFileLoader = new FileLoader($app['files'], $app['path.lang']);
-
-            // Copies the hints from the current loader into the native loader
-            foreach ($fileLoader->namespaces() as $namespace => $hint) {
-                $this->nativeFileLoader->addNamespace($namespace, $hint);
-            }
-        }
-
-        return $this->nativeFileLoader;
     }
 }
