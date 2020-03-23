@@ -19,7 +19,7 @@
     ],
     "require": {
         "php": ">=7.1",
-        "backpack/base": "^0.8 || ^0.7.19",
+        "backpack/base": "^0.9",
         "spatie/laravel-translation-loader": "^2.0 || 1.2.1"
     },
     "require-dev": {
