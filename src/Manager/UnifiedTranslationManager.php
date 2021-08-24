@@ -67,9 +67,6 @@ class UnifiedTranslationManager
         // Gets the files translations
         $diskTranslations = $this->getFromFiles($dictionary, $language);
 
-        // Converts sub arrays to dot notation (see https://laravel.com/docs/5.5/validation#localization)
-        $diskTranslations = array_dot($diskTranslations);
-
         // Removes non-string values
         $diskTranslations = array_filter($diskTranslations, 'is_string');
 
@@ -197,13 +194,14 @@ class UnifiedTranslationManager
         list($namespace, $group) = Lang::parseKey($dictionary);
 
         // Uses the native file loader to prevent loading from DB (see spatie/laravel-translation-loader)
-        $translations = $this->nativeFileLoader->load($language, $group, $namespace);
+        $translations = array_dot($this->nativeFileLoader->load($language, $group, $namespace));
 
         // Gets available keys in other languages, so we will have a symmetric list of translations in all languages
         $availableLocales = array_get($this->dictionaries, $dictionary);
         if (!empty($availableLocales)) {
             foreach ($availableLocales as $locale) {
-                $localeTranslations = $this->nativeFileLoader->load($locale, $group, $namespace);
+                $localeTranslations = array_dot($this->nativeFileLoader->load($locale, $group, $namespace));
+
                 foreach ($localeTranslations as $key => $value) {
                     if (!isset($translations[$key])) {
                         $translations[$key] = '';
